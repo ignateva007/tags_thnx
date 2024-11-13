@@ -1,0 +1,64 @@
+name: api-test-postman
+
+on:
+  # push:
+  #   branches:
+  #     - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Environment'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+        - development
+        - staging
+        - production
+  # uncomment the following lines to run on a schedule
+  # schedule: # by default, gets last commit on default branch 
+  #   - cron: '0 10 * * 1-5' # At 10:00 UTC on every day-of-week from Monday through Friday
+
+jobs:
+
+  test-api:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{inputs.environment}}
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4 # by default, gets last commit on default branch 
+
+
+      # Install Node on the runner
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          # cache: 'npm' # useful when the current repo has a package.json file
+
+
+      # Install the newman command line utility 
+      - name: Install newman
+        run: |
+          npm install -g newman
+
+
+      # parse environment response to extract the proper json and save it to file
+      - name: get-environment-json
+        run: |
+          curl -s https://api.postman.com/environments/${{vars.POSTMAN_ENVIRONMENT_ID}}?apikey=${{secrets.ORG_POSTMAN_API_KEY}} | jq '.environment' > env.json
+          cat env.json
+
+
+      # get collection json and save it to file
+      - name: get-collection-json
+        run: |
+          curl -s https://api.postman.com/collections/${{vars.POSTMAN_COLLECTION_ID}}?apikey=${{secrets.ORG_POSTMAN_API_KEY}} > col.json
+          cat col.json
+
+
+      # Run the POSTMAN collection
+      - name: Run POSTMAN collection
+        run: |
+          newman run col.json -e env.json --verbose --delay-request 2000
